@@ -2,11 +2,20 @@ import streamlit as st
 from streamlit_folium import st_folium
 import folium
 import pandas as pd
+import numpy as np
+from geopy.distance import geodesic
+from metaheuristics.ant_colony import AntColonyOptimizer
 
 
 def init_session_states():
     if 'selected_locations' not in st.session_state:
         st.session_state["selected_locations"] = []
+    if 'metaheuristic' not in st.session_state:
+        st.session_state['metaheuristic'] = {
+            'option': None,
+            'params': None,
+            'done': False
+        }
 
 
 def mk_intro_section():
@@ -40,6 +49,73 @@ def load_points_from_csv(f):
 def points_to_csv():
    df = pd.DataFrame(st.session_state['selected_locations'])
    return df.to_csv(index=False).encode('utf-8')
+
+
+@st.cache_data
+def get_point_array():
+    n = len(st.session_state['selected_locations'])
+    points = np.zeros((n,2))
+    for i in range(n):
+        loc_i = st.session_state['selected_locations'][i]
+        points[i,0] = loc_i['Latitude']
+        points[i,1] = loc_i['Longitude']
+    return points
+
+
+@st.cache_data
+def get_center():
+    points = get_point_array()
+    return np.mean(points, axis=0)
+
+
+@st.cache_data
+def get_distance_matrix():
+    n = len(st.session_state['selected_locations'])
+    distances = np.zeros((n,n))
+    points = get_point_array()
+    for i in range(n):
+        for j in range(n):
+            distances[i,j] = geodesic(points[i], points[j]).km
+    return distances
+
+
+#@st.cache_data
+def run_ant_colony_optimization():
+    assert st.session_state['metaheuristic']['option'] == 'ACO'
+    params = st.session_state['metaheuristic']['params']
+    d = get_distance_matrix()
+    aco = AntColonyOptimizer(
+        distance_matrix = d, 
+        n_ants = params['n_ants'], 
+        n_epochs = params['n_epochs'],
+        alpha = params['alpha'],
+        beta = params['beta'],
+        rho = params['rho'],
+        zq = params['zq']
+    )
+    path_history = []
+    length_history = []
+    pheromone_history = []
+    path, length = aco.optimize(path_history, length_history, pheromone_history)
+    result = {
+        'path': path,
+        'length': length
+    }
+    history = {
+        'path': path_history,
+        'length': length_history,
+        'pheromone': pheromone_history
+    }
+    return result, history
+
+
+def run_optimization():
+    option = st.session_state['metaheuristic']['option']
+    if option == 'ACO':
+        result, history = run_ant_colony_optimization()
+        st.session_state['metaheuristic']['result'] = result
+        st.session_state['metaheuristic']['history'] = history
+    st.session_state['metaheuristic']['done'] = True
 
 
 def mk_stopping_points_selection_section():
@@ -87,7 +163,31 @@ def mk_stopping_points_selection_section():
                 st.rerun()
         
         # Points table
-        st.table(st.session_state['selected_locations'])
+        #st.table(st.session_state['selected_locations'])
+        st.dataframe(st.session_state['selected_locations'], height=445, use_container_width=True)
+
+        # "At least 4 points" warning
+        if len(st.session_state['selected_locations']) < 4:
+            st.warning('You should select at least 4 points!')
+
+
+def mk_stopping_points_view_section():
+    col_map, col_data = st.columns(2)
+    with col_map:
+        st.write('Selected points on map')
+        map_display = folium.Map(location=[0, 0], zoom_start=1)
+        map_display.fit_bounds([(loc['Latitude'], loc['Longitude']) for loc in st.session_state['selected_locations']])
+
+        for loc in st.session_state['selected_locations']:
+            folium.Marker([loc['Latitude'], loc['Longitude']], popup='Selected point').add_to(map_display)
+
+        st_folium(map_display, width=700, height=500)
+
+    with col_data:
+        st.write('Selected points')
+        
+        # Points table
+        st.dataframe(st.session_state['selected_locations'], height=500, use_container_width=True)
 
         # "At least 4 points" warning
         if len(st.session_state['selected_locations']) < 4:
@@ -98,7 +198,7 @@ def mk_stopping_points_upload_section():
     points_csv_file = st.file_uploader('Upload the CSV file', type={'csv'})
     if points_csv_file is not None:
         load_points_from_csv(points_csv_file)
-        mk_stopping_points_selection_section()
+        mk_stopping_points_view_section()
 
 
 def mk_stopping_points_section():
@@ -135,11 +235,11 @@ def mk_ant_colony_parameters_section():
         st.write('Parameters:')
 
         col_n_epochs_input, col_n_epochs_text = st.columns(2, vertical_alignment='bottom')
-        n_epochs = col_n_epochs_input.number_input('Number of optimization epochs', min_value=10, step=1)
+        n_epochs = col_n_epochs_input.number_input('Number of optimization epochs', value=20, min_value=10, step=1)
         col_n_epochs_text.caption('The number of epochs is the number of times the ant colony will explore the search space. The more points there are, the higher this number should be.')
 
         col_n_ants_input, col_n_ants_text = st.columns(2, vertical_alignment='bottom')
-        n_ants = col_n_ants_input.number_input('Number of ants', min_value=2, step=1)
+        n_ants = col_n_ants_input.number_input('Number of ants', value=50, min_value=2, step=1)
         col_n_ants_text.caption('This determines the number of ants exploring the search space in each epoch. The higher this number, the fewer times it will take and the better the results will be.')
 
         col_alpha_input, col_alpha_text = st.columns(2, vertical_alignment='bottom')
@@ -158,16 +258,14 @@ def mk_ant_colony_parameters_section():
         zq = col_zq_input.number_input('$Z_Q$', value=2.0, min_value=-5.0, max_value=5.0, step=0.5)
         col_zq_text.caption('In this implementation, the pheromone trails are incremented as $\\tau_{i,j} = \\tau_{i,j} + \\frac{\\mu N - Z_Q \\sigma \\sqrt{N}}{L}$, where $\\mu$ is the average of all distances between pairs of points, $\\sigma$ is the standard deviation of these distances, $N$ is the number of points, and $L$ is the length of the best route found. The higher the $Z_Q$ value, the lower the pheromone increase each epoch.')
 
-        st.session_state['metaheuristic'] = {
-            'option': 'ACO',
-            'params': {
-                'n_epochs': n_epochs,
-                'n_ants': n_ants,
-                'alpha': alpha,
-                'beta': beta,
-                'rho': rho,
-                'zq': zq
-            }
+        st.session_state['metaheuristic']['option'] = 'ACO'
+        st.session_state['metaheuristic']['params'] = {
+            'n_epochs': n_epochs,
+            'n_ants': n_ants,
+            'alpha': alpha,
+            'beta': beta,
+            'rho': rho,
+            'zq': zq
         }
 
 
@@ -183,9 +281,48 @@ def mk_metaheuristic_selection_section():
         if option == 'Ant Colony Optimization (ACO)':
             mk_ant_colony_parameters_section()
 
-        if st.button('Run optimization'):
-            if len(st.session_state['selected_locations']) < 4:
-                st.error('The TSP instance should have at least 4 points')         
+        if not st.session_state['metaheuristic']['done']:
+            if st.button('Run optimization'):
+                if len(st.session_state['selected_locations']) < 4:
+                    st.error('The TSP instance should have at least 4 points')      
+                else:
+                    run_optimization()
+        else:
+            if st.button('Reset optimization'):
+                st.session_state['metaheuristic']['done'] = False
+                st.rerun()
+
+
+def mk_solution_section():
+    with st.container(border=True):
+        if st.session_state['metaheuristic']['done']:
+            result = st.session_state['metaheuristic']['result']
+            path = result['path']
+            points = get_point_array()
+
+            st.subheader('Solution')
+
+            col_map, col_table = st.columns(2)
+            
+            with col_map:
+                map_display = folium.Map(location=get_center(), zoom_start=2)
+                map_display.fit_bounds([tuple(p) for p in points])
+
+                folium.PolyLine(
+                    locations = [points[position] for position in path] + [points[path[0]]],
+                    color = 'blue',
+                    weight = 3,
+                    opacity = 0.7,
+                ).add_to(map_display)
+                
+                for p in points:
+                    folium.Marker(location=p).add_to(map_display)
+                
+                st_folium(map_display, width=700, height=500)
+
+            with col_table:
+                locations = st.session_state['selected_locations']
+                st.table([locations[position] for position in path])
 
 
 def main():
@@ -198,6 +335,7 @@ def main():
     mk_intro_section()
     mk_stopping_points_section()
     mk_metaheuristic_selection_section()
+    mk_solution_section()
 
 
 main()
