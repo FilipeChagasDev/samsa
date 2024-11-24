@@ -21,7 +21,7 @@ server = app.server
 
 # --- DATA ---
 
-CRITICAL_N_POINTS = 15
+CRITICAL_N_POINTS = 10
 DEFAULT_N_POINTS = 10
 DEFAULT_MIN_X = -1
 DEFAULT_MAX_X = 1
