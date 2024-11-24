@@ -17,6 +17,7 @@ from help import help_article
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.LUMEN])
 app.title = 'SAMSA'
+server = app.server
 
 # --- DATA ---
 
