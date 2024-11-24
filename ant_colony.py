@@ -3,9 +3,6 @@ Filipe Chagas Ferraz (github.com/FilipeChagasDev)
 Nov-2024
 '''
 import numpy as np
-from scipy.stats import entropy
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
 
 class AntColonyOptimizer():
