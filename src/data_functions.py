@@ -23,7 +23,7 @@ def euclidean_distance_matrix_memmap(points_df: pd.DataFrame) -> np.ndarray:
     n = coords.shape[0]
     
     # Criação de um arquivo temporário
-    tmp_file = tempfile.TemporaryFile()
+    tmp_file = tempfile.NamedTemporaryFile()
     
     # Criação de um array de memória mapeada para a matriz de distâncias
     dist_matrix = np.memmap(tmp_file.name, dtype='float32', mode='w+', shape=(n, n))
