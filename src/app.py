@@ -253,20 +253,20 @@ app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
 
 # Callback to change the tab to "solution" when "Solve TSP Instance" is clicked
 @app.callback(
-    [Output('solution_plot', 'figure'),
+    Output('solution_plot', 'figure'),
     Output('solution_over_time_plot', 'figure'),
     Output('length_over_time_plot', 'figure'),
     Output('pheromone_over_time_plot', 'figure'),
     Output('entropy_over_time_plot', 'figure'),
     Output('solution_sequence', 'children'),
-    Output('tabs', 'active_tab', allow_duplicate=True)],
-    [Input('solve-btn', 'n_clicks')],
-    [State('n_ants', 'value'),
+    Output('tabs', 'active_tab', allow_duplicate=True),
+    Input('solve-btn', 'n_clicks'),
+    State('n_ants', 'value'),
     State('n_epochs', 'value'),
     State('alpha', 'value'),
     State('beta', 'value'),
     State('rho', 'value'),
-    State('zeta', 'value')],
+    State('zeta', 'value'),
     prevent_initial_call=True
 )
 def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
@@ -301,14 +301,14 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
 
 
 @app.callback(
-        [Output('pointset_plot', 'figure'),
-        Output('tabs', 'active_tab', allow_duplicate=True)],
-        [Input('generate-btn', 'n_clicks')], 
-        [State('n_points', 'value'),
+        Output('pointset_plot', 'figure'),
+        Output('tabs', 'active_tab', allow_duplicate=True),
+        Input('generate-btn', 'n_clicks'), 
+        State('n_points', 'value'),
         State('min_x', 'value'),
         State('max_x', 'value'),
         State('min_y', 'value'),
-        State('max_y', 'value')],
+        State('max_y', 'value'),
         prevent_initial_call=True
 )
 def generate_pointset(n_clicks, n_points, min_x, max_x, min_y, max_y):
@@ -328,5 +328,4 @@ def generate_pointset(n_clicks, n_points, min_x, max_x, min_y, max_y):
 
 
 if __name__ == '__main__':
-    #app.run_server()
     app.run(debug=True)
