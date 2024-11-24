@@ -11,7 +11,7 @@ from ant_colony import AntColonyOptimizer
 from ui_components import numeric_input, input_group, upload_group
 from ui_components import pointset_plot, solution_plot, solutions_over_time_plot, length_over_time_plot
 from ui_components import pheromone_distribution_plot, entropy_over_time_plot
-from data_functions import euclidean_distance_matrix_memmap, indices_to_names
+from data_functions import euclidean_distance_matrix, indices_to_names
 from help import help_article
 
 
@@ -21,6 +21,7 @@ server = app.server
 
 # --- DATA ---
 
+CRITICAL_N_POINTS = 15
 DEFAULT_N_POINTS = 10
 DEFAULT_MIN_X = -1
 DEFAULT_MAX_X = 1
@@ -270,7 +271,7 @@ app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
 )
 def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
     if n_clicks:
-        distance_matrix, tmp_file = euclidean_distance_matrix_memmap(data['points_df'])
+        distance_matrix = euclidean_distance_matrix(data['points_df'])
         aco = AntColonyOptimizer(distance_matrix, n_ants, n_epochs, alpha, beta, rho, zeta)
         path_hist = []
         best_len_hist = []
@@ -280,8 +281,13 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
         out1 = solution_plot(data['points_df'], path)
         out2 = solutions_over_time_plot(data['points_df'], np.array(path_hist))
         out3 = length_over_time_plot(best_len_hist)
-        #out4 = pheromone_distribution_plot(data['points_df'], phero_hist)
-        out4 = go.Figure()
+        if len(data['points_df']) <= CRITICAL_N_POINTS:
+            out4 = pheromone_distribution_plot(data['points_df'], phero_hist)
+        else:
+            fig = go.Figure()
+            fig.add_annotation(text=f"This chart can only be displayed for up to {CRITICAL_N_POINTS} points.", x=0.5, y=0.5, showarrow=False, font=dict(size=24), align="center")
+            fig.update_layout(xaxis=dict(range=[0, 1], showgrid=False), yaxis=dict(range=[0, 1], showgrid=False), plot_bgcolor="white")
+            out4=fig
         out5 = entropy_over_time_plot(phero_hist)
         out6 = html.Div(children=[
             html.P(children=[
@@ -294,7 +300,6 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
             ])
         ])
         out7 = 'solution'
-        tmp_file.close()
         return out1, out2, out3, out4, out5, out6, out7
     
     return go.Figure(), go.Figure(), go.Figure(), '', 'instance'
