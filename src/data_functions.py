@@ -23,22 +23,19 @@ def euclidean_distance_matrix_memmap(points_df: pd.DataFrame) -> np.ndarray:
     n = coords.shape[0]
     
     # Criação de um arquivo temporário
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.close()  # Fecha o arquivo temporário para que o np.memmap possa abrir.
-        
-        # Criação de um array de memória mapeada para a matriz de distâncias
-        dist_matrix = np.memmap(tmp_file.name, dtype='float32', mode='w+', shape=(n, n))
-        
-        # Preenchendo a matriz de distâncias
-        for i in range(n):
-            for j in range(i+1, n):  # Só precisa calcular a metade superior (simétrica)
-                dist = np.linalg.norm(coords[i] - coords[j])
-                dist_matrix[i, j] = dist
-                dist_matrix[j, i] = dist  # A matriz é simétrica
+    tmp_file = tempfile.TemporaryFile(delete=False)
+    
+    # Criação de um array de memória mapeada para a matriz de distâncias
+    dist_matrix = np.memmap(tmp_file.name, dtype='float32', mode='w+', shape=(n, n))
+    
+    # Preenchendo a matriz de distâncias
+    for i in range(n):
+        for j in range(i+1, n):  # Só precisa calcular a metade superior (simétrica)
+            dist = np.linalg.norm(coords[i] - coords[j])
+            dist_matrix[i, j] = dist
+            dist_matrix[j, i] = dist  # A matriz é simétrica
 
-        # A exclusão do arquivo temporário ocorrerá após o término do programa
-
-    return dist_matrix
+    return dist_matrix, tmp_file
 
 
 def euclidean_distance_matrix(points_df: pd.DataFrame, use_memmap: bool = True) -> np.ndarray:
@@ -55,11 +52,8 @@ def euclidean_distance_matrix(points_df: pd.DataFrame, use_memmap: bool = True) 
     Returns:
         np.ndarray: A 2D NumPy array (matrix) where the element at position (i, j) is the Euclidean distance between point i and point j.
     """ 
-    if use_memmap:
-        return euclidean_distance_matrix_memmap(points_df)
-    else:
-        coords = points_df[['x', 'y']].values
-        return np.linalg.norm(coords[:, np.newaxis] - coords, axis=2)
+    coords = points_df[['x', 'y']].values
+    return np.linalg.norm(coords[:, np.newaxis] - coords, axis=2)
 
 
 def distance_matrix_from_df(points_df: pd.DataFrame, distances_df: pd.DataFrame) -> np.ndarray:
