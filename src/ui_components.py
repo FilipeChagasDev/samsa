@@ -42,7 +42,7 @@ def upload_group():
             'margin-right': '10px'
         }
     )
-    group = input_group('📤 Pointset upload', [[upload_comp], [html.P('filename.csv', id='upload_fn')]])
+    group = input_group('📤 Pointset upload', [[upload_comp], [html.P(html.A('click here to download an example CSV', href='https://github.com/FilipeChagasDev/samsa/releases/download/example.csv/example.csv'), id='upload_fn')]])
     return group
 
 

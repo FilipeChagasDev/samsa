@@ -2,11 +2,13 @@
 Filipe Chagas Ferraz (github.com/FilipeChagasDev)
 Nov-2024
 '''
-from dash import Dash, html, dcc, Input, Output, State, dash_table
+from dash import Dash, html, dcc, Input, Output, State, dash_table, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
+import base64
+import io
 from ant_colony import AntColonyOptimizer
 from ui_components import numeric_input, input_group, upload_group
 from ui_components import pointset_plot, solution_plot, solutions_over_time_plot, length_over_time_plot
@@ -74,7 +76,7 @@ sidebar = html.Div(
             children=[
                 dbc.Accordion(className='mb-4', children=[
                     dbc.AccordionItem(title='📍 Pointset', children=[
-                        #upload_group(),
+                        upload_group(),
                         input_group('📝 Random pointset generation', [
                             [
                                 numeric_input('Min X', value=-1, min=-100, max=100, step=1, id='min_x'),
@@ -304,12 +306,13 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
         out7 = 'solution'
         return out1, out2, out3, out4, out5, out6, out7
     
-    return go.Figure(), go.Figure(), go.Figure(), '', 'instance'
+    return no_update, no_update, no_update, no_update, no_update
 
 
 @app.callback(
-        Output('pointset_plot', 'figure'),
+        Output('pointset_plot', 'figure', allow_duplicate=True),
         Output('tabs', 'active_tab', allow_duplicate=True),
+        Output('upload_fn', 'children', allow_duplicate=True),
         Input('generate-btn', 'n_clicks'), 
         State('n_points', 'value'),
         State('min_x', 'value'),
@@ -331,8 +334,55 @@ def generate_pointset(n_clicks, n_points, min_x, max_x, min_y, max_y):
 
         data['points_df'] = points_df
 
-    return pointset_plot(data['points_df']), 'instance'
+    return pointset_plot(data['points_df']), 'instance', ''
 
+
+@app.callback(
+        Output('pointset_plot', 'figure', allow_duplicate=True),
+        Output('tabs', 'active_tab', allow_duplicate=True),
+        Output('upload_fn', 'children', allow_duplicate=True),
+        Input('upload', 'contents'),
+        State('upload', 'filename'),
+        prevent_initial_call=True
+)
+def update_output(content, name):
+    if content is not None:
+        content_type, content_string = content.split(',')
+        decoded = base64.b64decode(content_string)
+
+        try:
+            df: pd.DataFrame = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+        except Exception as e:
+            return no_update, no_update, '🔴 Error reading the file.'
+        
+        if 'name' not in df.columns:
+            return no_update, no_update,  '🔴 Invalid CSV. Column "name" not found.'
+        
+        if 'x' not in df.columns:
+            return no_update, no_update,  '🔴 Invalid CSV. Column "x" not found.'
+        
+        if 'y' not in df.columns:
+            return no_update, no_update,  '🔴 Invalid CSV. Column "y" not found.'
+        
+        if df['x'].dtype != float and df['x'].dtype != int:
+            return no_update, no_update,  '🔴 Invalid CSV. Non-numeric data in column "x".'
+        
+        if df['y'].dtype != float and df['y'].dtype != int:
+            return no_update, no_update,  '🔴 Invalid CSV. Non-numeric data in column "y".'
+        
+        if len(df) < 4:
+            return no_update, no_update, '🔴 Invalid CSV. At least 4 rows are required.'
+        
+        df = df[['name', 'x', 'y']] # Filter columns
+        df['name'] = df['name'].astype(str) # Force name column to be string
+        df['x'] = df['x'].astype(float) # Force x column to be float
+        df['y'] = df['y'].astype(float) # Force y column to be float
+        data['points_df'] = df
+        
+        return pointset_plot(data['points_df']), 'instance', name
+      
+    return no_update, no_update, no_update
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
