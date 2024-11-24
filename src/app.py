@@ -306,7 +306,7 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
         out7 = 'solution'
         return out1, out2, out3, out4, out5, out6, out7
     
-    return go.Figure(), go.Figure(), go.Figure(), '', 'instance'
+    return no_update, no_update, no_update, no_update, no_update
 
 
 @app.callback(
