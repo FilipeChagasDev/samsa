@@ -4,9 +4,44 @@ Nov-2024
 '''
 import pandas as pd
 import numpy as np
+import tempfile
+import os
 
 
-def euclidean_distance_matrix(points_df: pd.DataFrame) -> np.ndarray:
+def euclidean_distance_matrix_memmap(points_df: pd.DataFrame) -> np.ndarray:
+    """
+    Computes the Euclidean distance matrix for a set of points, using a temporary memory-mapped file
+    to reduce RAM usage. The temporary file is deleted automatically after use.
+
+    Parameters:
+        points_df (pd.DataFrame): A DataFrame with columns 'x' and 'y' representing the coordinates of the points.
+    
+    Returns:
+        np.ndarray: A memory-mapped 2D NumPy array (matrix) where the element at position (i, j) is the Euclidean distance between point i and point j.
+    """
+    coords = points_df[['x', 'y']].values
+    n = coords.shape[0]
+    
+    # Criação de um arquivo temporário
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.close()  # Fecha o arquivo temporário para que o np.memmap possa abrir.
+        
+        # Criação de um array de memória mapeada para a matriz de distâncias
+        dist_matrix = np.memmap(tmp_file.name, dtype='float32', mode='w+', shape=(n, n))
+        
+        # Preenchendo a matriz de distâncias
+        for i in range(n):
+            for j in range(i+1, n):  # Só precisa calcular a metade superior (simétrica)
+                dist = np.linalg.norm(coords[i] - coords[j])
+                dist_matrix[i, j] = dist
+                dist_matrix[j, i] = dist  # A matriz é simétrica
+
+        # A exclusão do arquivo temporário ocorrerá após o término do programa
+
+    return dist_matrix
+
+
+def euclidean_distance_matrix(points_df: pd.DataFrame, use_memmap: bool = True) -> np.ndarray:
     """
     Computes the Euclidean distance matrix for a set of points.
 
@@ -20,8 +55,11 @@ def euclidean_distance_matrix(points_df: pd.DataFrame) -> np.ndarray:
     Returns:
         np.ndarray: A 2D NumPy array (matrix) where the element at position (i, j) is the Euclidean distance between point i and point j.
     """ 
-    coords = points_df[['x', 'y']].values
-    return np.linalg.norm(coords[:, np.newaxis] - coords, axis=2)
+    if use_memmap:
+        return euclidean_distance_matrix_memmap(points_df)
+    else:
+        coords = points_df[['x', 'y']].values
+        return np.linalg.norm(coords[:, np.newaxis] - coords, axis=2)
 
 
 def distance_matrix_from_df(points_df: pd.DataFrame, distances_df: pd.DataFrame) -> np.ndarray:

@@ -21,7 +21,7 @@ server = app.server
 
 # --- DATA ---
 
-DEFAULT_N_POINTS = 20
+DEFAULT_N_POINTS = 10
 DEFAULT_MIN_X = -1
 DEFAULT_MAX_X = 1
 DEFAULT_MIN_Y = -1
@@ -32,8 +32,7 @@ data = {
             'name': [f'P{i}' for i in range(DEFAULT_N_POINTS)],
             'x': np.random.random(DEFAULT_N_POINTS)*(DEFAULT_MAX_X-DEFAULT_MIN_X) + DEFAULT_MIN_X,
             'y': np.random.random(DEFAULT_N_POINTS)*(DEFAULT_MAX_Y-DEFAULT_MIN_Y) + DEFAULT_MIN_Y,
-        }),
-    'distances_df': None
+        })
 }
 
 
@@ -82,7 +81,7 @@ sidebar = html.Div(
                                 numeric_input('Min Y', value=-1, min=-100, max=100, step=1, id='min_y'),
                                 numeric_input('Max Y', value=1, min=-100, max=100, step=1, id='max_y')
                             ],
-                            [numeric_input('Number of points', value=50, min=4, max=1000, step=1, id='n_points')],
+                            [numeric_input('Number of points', value=10, min=4, max=1000, step=1, id='n_points')],
                             [dbc.Button('Generate', className='mb-4', id='generate-btn')]
                         ]),
                     ]),
@@ -237,7 +236,7 @@ tabs = dbc.Tabs(children=[
 )
 
 content = html.Div(children=[
-        dcc.Loading(overlay_style={"visibility":"visible", "filter": "blur(2px)"}, children=[
+        dcc.Loading(overlay_style={"visibility": "visible", "filter": "blur(2px)"}, children=[
             tabs
         ])
     ], 
