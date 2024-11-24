@@ -22,6 +22,8 @@ server = app.server
 # --- DATA ---
 
 CRITICAL_N_POINTS = 10
+CRITICAL_N_EPOCHS = 50
+
 DEFAULT_N_POINTS = 10
 DEFAULT_MIN_X = -1
 DEFAULT_MAX_X = 1
@@ -82,14 +84,14 @@ sidebar = html.Div(
                                 numeric_input('Min Y', value=-1, min=-100, max=100, step=1, id='min_y'),
                                 numeric_input('Max Y', value=1, min=-100, max=100, step=1, id='max_y')
                             ],
-                            [numeric_input('Number of points', value=10, min=4, max=1000, step=1, id='n_points')],
+                            [numeric_input('Number of points', value=10, min=4, max=50, step=1, id='n_points')],
                             [dbc.Button('Generate', className='mb-4', id='generate-btn')]
                         ]),
                     ]),
                     dbc.AccordionItem(title='🐜 Ant Colony Optimization parameters', children=[
                         input_group('⏳ Time and resources', [[
-                            numeric_input('Number of ants', value=20, min=1, max=10000, step=1, id='n_ants'),
-                            numeric_input('Number of epochs', value=50, min=1, max=10000, step=1, id='n_epochs')
+                            numeric_input('Number of ants', value=20, min=1, max=100, step=1, id='n_ants'),
+                            numeric_input('Number of epochs', value=50, min=1, max=100, step=1, id='n_epochs')
                         ]]),
                         input_group('🎲 Probability', [[
                             numeric_input('α (alpha)', value=1, min=0.1, max=10, step=0.1, id='alpha'),
@@ -281,11 +283,11 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
         out1 = solution_plot(data['points_df'], path)
         out2 = solutions_over_time_plot(data['points_df'], np.array(path_hist))
         out3 = length_over_time_plot(best_len_hist)
-        if len(data['points_df']) <= CRITICAL_N_POINTS:
+        if len(data['points_df']) <= CRITICAL_N_POINTS and n_epochs <= CRITICAL_N_EPOCHS:
             out4 = pheromone_distribution_plot(data['points_df'], phero_hist)
         else:
             fig = go.Figure()
-            fig.add_annotation(text=f"This chart can only be displayed for up to {CRITICAL_N_POINTS} points.", x=0.5, y=0.5, showarrow=False, font=dict(size=24), align="center")
+            fig.add_annotation(text=f"This chart can only be displayed for up to {CRITICAL_N_POINTS} points and {CRITICAL_N_EPOCHS} epochs.", x=0.5, y=0.5, showarrow=False, font=dict(size=24), align="center")
             fig.update_layout(xaxis=dict(range=[0, 1], showgrid=False), yaxis=dict(range=[0, 1], showgrid=False), plot_bgcolor="white")
             out4=fig
         out5 = entropy_over_time_plot(phero_hist)
