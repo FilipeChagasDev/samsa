@@ -32,13 +32,16 @@ DEFAULT_MAX_X = 1
 DEFAULT_MIN_Y = -1
 DEFAULT_MAX_Y = 1
 
-data = {
-    'points_df': pd.DataFrame({
+
+def random_points_df():
+    df = pd.DataFrame({
             'name': [f'P{i}' for i in range(DEFAULT_N_POINTS)],
             'x': np.random.random(DEFAULT_N_POINTS)*(DEFAULT_MAX_X-DEFAULT_MIN_X) + DEFAULT_MIN_X,
             'y': np.random.random(DEFAULT_N_POINTS)*(DEFAULT_MAX_Y-DEFAULT_MIN_Y) + DEFAULT_MIN_Y,
         })
-}
+    return df
+
+DEFAULT_POINTSET = random_points_df()
 
 
 # --- SIDEBAR LAYOUT ---
@@ -123,7 +126,7 @@ problem_instance_tab = dbc.Tab(
         dbc.Row(children=[
             dbc.Col(dcc.Graph(
                 id='pointset_plot',
-                figure=pointset_plot(data['points_df']),
+                figure=pointset_plot(DEFAULT_POINTSET),
                 style={
                     'width': '100%',  # Largura do gráfico ocupa 100% do espaço disponível
                     'height': '90vh',  # Altura do gráfico ocupa 90% da altura da janela de visualização
@@ -250,7 +253,12 @@ content = html.Div(children=[
 )
 
 
-app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
+app.layout = html.Div([
+    dcc.Location(id="url"), 
+    dcc.Store(data=DEFAULT_POINTSET.to_json(), id='points_storage', storage_type='session'), 
+    sidebar, 
+    content
+])
 
 
 # --- CALLBACKS ---
@@ -265,6 +273,7 @@ app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
     Output('solution_sequence', 'children'),
     Output('tabs', 'active_tab', allow_duplicate=True),
     Input('solve-btn', 'n_clicks'),
+    State('points_storage', 'data'),
     State('n_ants', 'value'),
     State('n_epochs', 'value'),
     State('alpha', 'value'),
@@ -273,20 +282,21 @@ app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
     State('zeta', 'value'),
     prevent_initial_call=True
 )
-def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
-    if n_clicks:
-        distance_matrix = euclidean_distance_matrix(data['points_df'])
+def solve_instance_callback(n_clicks, points_json, n_ants, n_epochs, alpha, beta, rho, zeta):
+    if n_clicks > 0:
+        points_df = pd.read_json(io.StringIO(points_json))
+        distance_matrix = euclidean_distance_matrix(points_df)
         aco = AntColonyOptimizer(distance_matrix, n_ants, n_epochs, alpha, beta, rho, zeta)
         path_hist = []
         best_len_hist = []
         phero_hist = []
         path, length = aco.optimize(path_history=path_hist, best_length_history=best_len_hist, pheromone_history=phero_hist)
 
-        out1 = solution_plot(data['points_df'], path)
-        out2 = solutions_over_time_plot(data['points_df'], np.array(path_hist))
+        out1 = solution_plot(points_df, path)
+        out2 = solutions_over_time_plot(points_df, np.array(path_hist))
         out3 = length_over_time_plot(best_len_hist)
-        if len(data['points_df']) <= CRITICAL_N_POINTS and n_epochs <= CRITICAL_N_EPOCHS:
-            out4 = pheromone_distribution_plot(data['points_df'], phero_hist)
+        if len(points_df) <= CRITICAL_N_POINTS and n_epochs <= CRITICAL_N_EPOCHS:
+            out4 = pheromone_distribution_plot(points_df, phero_hist)
         else:
             fig = go.Figure()
             fig.add_annotation(text=f"This chart can only be displayed for up to {CRITICAL_N_POINTS} points and {CRITICAL_N_EPOCHS} epochs.", x=0.5, y=0.5, showarrow=False, font=dict(size=24), align="center")
@@ -296,7 +306,7 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
         out6 = html.Div(children=[
             html.P(children=[
                 html.Span('Path: ', style={'font-weight': 'bold'}), 
-                ', '.join(indices_to_names(path, data['points_df']))
+                ', '.join(indices_to_names(path, points_df))
             ]),
             html.P(children=[
                 html.Span('Length: ', style={'font-weight': 'bold'}), 
@@ -313,6 +323,7 @@ def solve_instance_callback(n_clicks, n_ants, n_epochs, alpha, beta, rho, zeta):
         Output('pointset_plot', 'figure', allow_duplicate=True),
         Output('tabs', 'active_tab', allow_duplicate=True),
         Output('upload_fn', 'children', allow_duplicate=True),
+        Output('points_storage', 'data', allow_duplicate=True),
         Input('generate-btn', 'n_clicks'), 
         State('n_points', 'value'),
         State('min_x', 'value'),
@@ -332,15 +343,16 @@ def generate_pointset(n_clicks, n_points, min_x, max_x, min_y, max_y):
             'y': np.random.random(n_points)*(max_y-min_y) + min_y,
         })
 
-        data['points_df'] = points_df
+        points_json = points_df.to_json()
 
-    return pointset_plot(data['points_df']), 'instance', ''
+    return pointset_plot(points_df), 'instance', '', points_json
 
 
 @app.callback(
         Output('pointset_plot', 'figure', allow_duplicate=True),
         Output('tabs', 'active_tab', allow_duplicate=True),
         Output('upload_fn', 'children', allow_duplicate=True),
+        Output('points_storage', 'data', allow_duplicate=True),
         Input('upload', 'contents'),
         State('upload', 'filename'),
         prevent_initial_call=True
@@ -377,11 +389,10 @@ def update_output(content, name):
         df['name'] = df['name'].astype(str) # Force name column to be string
         df['x'] = df['x'].astype(float) # Force x column to be float
         df['y'] = df['y'].astype(float) # Force y column to be float
-        data['points_df'] = df
         
-        return pointset_plot(data['points_df']), 'instance', name
+        return pointset_plot(df), 'instance', name, df.to_json()
       
-    return no_update, no_update, no_update
+    return no_update, no_update, no_update, no_update
     
 
 if __name__ == '__main__':
